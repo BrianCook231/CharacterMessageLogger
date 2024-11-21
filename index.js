@@ -1,68 +1,23 @@
-import { eventSource, event_types } from '../../../script.js';
-import { getContext } from '../../extensions.js';
-import fs from 'fs';
-import path from 'path';
+import { getContext } from "../../../extensions.js";
+import { eventSource, event_types } from "../../../../script.js";
 
-// Configuration for the extension
-const config = {
-    logDirectory: path.join(process.cwd(), 'character-messages'),
-};
+// Register an event listener for incoming messages.
+eventSource.on(event_types.MESSAGE_RECEIVED, handleIncomingMessage);
 
-// Ensure log directory exists
-function ensureLogDirectoryExists() {
-    if (!fs.existsSync(config.logDirectory)) {
-        fs.mkdirSync(config.logDirectory, { recursive: true });
-    }
-}
+// Retrieve application context, including chat logs and participant info.
+const context = getContext();
 
-// Sanitize filename to remove invalid characters
-function sanitizeFilename(filename) {
-    return filename.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-}
-
-// Log message to a file
-function logMessageToFile(character, message) {
-    ensureLogDirectoryExists();
-    
-    const sanitizedCharName = sanitizeFilename(character);
-    const logFilePath = path.join(
-        config.logDirectory, 
-        `${sanitizedCharName}_messages.txt`
-    );
-
-    // Append message with timestamp
-    const logEntry = `[${new Date().toISOString()}] ${message}\n`;
-    
-    try {
-        fs.appendFileSync(logFilePath, logEntry);
-        console.log(`Message logged for ${character}`);
-    } catch (error) {
-        console.error('Error logging message:', error);
-    }
-}
-
-// Handle incoming messages
 function handleIncomingMessage(data) {
-    const context = getContext();
-    
-    // Get the current character name
-    const currentCharacter = context.characters.find(
-        char => char.avatar === context.characterAvatar
-    )?.name || 'unknown_character';
+    // Access the most recent message from the chat log.
+    let mostRecentMessage = context.chat[context.chat.length - 1];
 
-    // Log the incoming message
-    logMessageToFile(currentCharacter, data.message);
+    // Check browser support for speech synthesis.
+    if ('speechSynthesis' in window) {
+        // Render the announcement of the character's message to audio.
+        let utterance = new SpeechSynthesisUtterance(mostRecentMessage.name + " said something");
+        window.speechSynthesis.speak(utterance);
+    } else {
+        // Log an error if speech synthesis isn't supported.
+        console.error("Speech synthesis is not supported in this browser.");
+    }
 }
-
-// Initialize the extension
-function initMessageLogger() {
-    // Listen for incoming messages
-    eventSource.on(event_types.MESSAGE_RECEIVED, handleIncomingMessage);
-    
-    console.log('Character Message Logger Extension Initialized');
-}
-
-// Run initialization
-initMessageLogger();
-
-export { initMessageLogger };
